@@ -30,7 +30,7 @@ class TestMockk {
     }
 
     @Test
-    internal fun `should match list of arguments`() { // Passes
+    internal fun `should_match_list_of_arguments`() { // Passes
 
         every {
             shopService.buyProducts(any())
@@ -42,7 +42,7 @@ class TestMockk {
     }
 
     @Test
-    internal fun `should match with two arguments of type list`() { // Throws MockkException
+    internal fun `should_match_with_two_arguments_of_type_list`() { // Throws MockkException
 
         every {
             shopService.addProductAndOrders(products = any(), orders = any())

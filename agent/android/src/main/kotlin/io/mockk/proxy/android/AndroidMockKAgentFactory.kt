@@ -32,7 +32,7 @@ class AndroidMockKAgentFactory : MockKAgentFactory {
         log = logFactory.logger(AndroidMockKAgentFactory::class.java)
 
         var inliner: AndroidInlineInstrumentation? = null
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val agent: JvmtiAgent
             val dispatcherClass: Class<*>
             try {
@@ -97,13 +97,15 @@ class AndroidMockKAgentFactory : MockKAgentFactory {
                             getRuntimeMethodName,
                             null
                     ) as Method
-                    val setHiddenApiExemptions = getDeclaredMethod(
-                            vmRuntimeClass,
-                            setHiddenApiExemptionsMethodName,
-                            arrayOf(arrayOf<String>()::class.java)
-                    ) as Method
+                    if (Build.VERSION.SDK_INT > Build.VERSION_CODES.O) {
+                        val setHiddenApiExemptions = getDeclaredMethod(
+                                vmRuntimeClass,
+                                setHiddenApiExemptionsMethodName,
+                                arrayOf(arrayOf<String>()::class.java)
+                        ) as Method
 
-                    setHiddenApiExemptions(getRuntime(null), arrayOf("L"))
+                        setHiddenApiExemptions(getRuntime(null), arrayOf("L"))
+                    }
                 } catch (ex: Exception) {
                     throw MockKAgentException("Could not set up hiddenApiExemptions")
                 }

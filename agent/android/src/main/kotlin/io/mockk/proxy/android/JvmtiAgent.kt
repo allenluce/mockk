@@ -18,6 +18,7 @@
 
 package io.mockk.proxy.android
 
+import android.app.Application
 import android.os.Build
 import android.os.Debug
 import dalvik.system.BaseDexClassLoader
@@ -27,29 +28,42 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
 import java.security.ProtectionDomain
+import android.system.Os
 
 internal class JvmtiAgent {
     var transformer: InliningClassTransformer? = null
+    private val mockLibrary = "libmockkjvmtiagent.so"
 
     init {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
-            throw MockKAgentException("Requires API level " + Build.VERSION_CODES.P + ". API level is "
-                    + Build.VERSION.SDK_INT)
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+              throw MockKAgentException("Requires API level " + Build.VERSION_CODES.O + ". API level is "
+                                        + Build.VERSION.SDK_INT)
+          }
+
+        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.O) {
+            val cl =
+              JvmtiAgent::class.java.classLoader as? BaseDexClassLoader
+                      ?: throw MockKAgentException("Could not load jvmti plugin as AndroidMockKJvmtiAgent class was not loaded " + "by a BaseDexClassLoader")
+            Debug.attachJvmtiAgent(mockLibrary, null, cl)
+        } else {
+            val giaMeth = Class.forName("android.app.AppGlobals").getDeclaredMethod("getInitialApplication")
+            val context = (giaMeth.invoke(null) as Application).getApplicationContext();
+            val nativeLibDir = context.getApplicationInfo().nativeLibraryDir
+            val libLocation = "${nativeLibDir}/${mockLibrary}"
+            val cleanLocation = "${context.getFilesDir().toString()}/${mockLibrary}"
+
+            try {
+                Os.symlink(libLocation, cleanLocation)
+                val vmDebugClass = Class.forName("dalvik.system.VMDebug")
+                val attachAgentMethod = vmDebugClass.getDeclaredMethod("attachAgent", String::class.java)
+                    .apply { isAccessible = true }
+                attachAgentMethod.invoke(null, cleanLocation)
+            } finally {
+                File(cleanLocation).delete()
+            }
         }
-
-        if (Build.VERSION.CODENAME != "P") {
-
-        }
-
-        val cl =
-            JvmtiAgent::class.java.classLoader as? BaseDexClassLoader
-                    ?: throw MockKAgentException("Could not load jvmti plugin as AndroidMockKJvmtiAgent class was not loaded " + "by a BaseDexClassLoader")
-
-        Debug.attachJvmtiAgent(libName, null, cl)
         nativeRegisterTransformerHook()
     }
-
-
 
     fun appendToBootstrapClassLoaderSearch(inStream: InputStream) {
         val jarFile = File.createTempFile("mockk-boot", ".jar")
@@ -93,7 +107,6 @@ internal class JvmtiAgent {
     private external fun nativeRetransformClasses(classes: Array<Class<*>>)
 
     companion object {
-        private const val libName = "libmockkjvmtiagent.so"
         private val lock = Any()
 
         @JvmStatic
